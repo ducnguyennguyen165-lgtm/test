@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Quiz: Personalities</title>
+    <style>
+        :root {
+            --primary: #4338ca;
+            --primary-hover: #3730a3;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+            --error: #ef4444;
+            --success: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); display: flex; justify-content: center; min-height: 100vh; padding: 15px; }
+        #app { background-color: var(--card-bg); width: 100%; max-width: 600px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; }
+        .screen { display: none; padding: 25px; flex-grow: 1; overflow-y: auto; }
+        .screen.active { display: block; }
+        
+        h1, h2, h3 { text-align: center; margin-bottom: 20px; color: var(--primary); }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; margin-bottom: 8px; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 16px; transition: border 0.3s; }
+        input[type="text"]:focus { outline: none; border-color: var(--primary); }
+        
+        button { width: 100%; padding: 14px; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; margin-top: 10px; }
+        button:hover { background-color: var(--primary-hover); }
+        
+        .quiz-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #e5e7eb; font-weight: bold; }
+        .timer { font-size: 18px; color: var(--error); }
+        
+        .question-text { font-size: 18px; margin-bottom: 20px; line-height: 1.5; }
+        .question-type-badge { display: inline-block; padding: 4px 8px; background-color: #e0e7ff; color: var(--primary); border-radius: 4px; font-size: 12px; margin-bottom: 10px; text-transform: uppercase; font-weight: bold; }
+        
+        .options-grid { display: grid; gap: 12px; }
+        .option-label { display: flex; align-items: center; padding: 15px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-size: 16px; }
+        .option-label:hover { border-color: var(--primary); background-color: #f5f3ff; }
+        .option-label input { margin-right: 15px; width: 18px; height: 18px; accent-color: var(--primary); flex-shrink: 0; }
+        
+        .nav-buttons { display: flex; justify-content: space-between; gap: 10px; margin-top: 25px; }
+        .nav-buttons button { width: 48%; margin-top: 0; }
+        
+        .result-stat { font-size: 24px; text-align: center; margin: 20px 0; font-weight: bold; }
+        .wrong-list { margin-top: 20px; }
+        .wrong-item { background: #fee2e2; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--error); }
+        .wrong-item p { margin-bottom: 5px; font-size: 15px; line-height: 1.4; }
+        .wrong-item .correct-ans { color: var(--success); font-weight: bold; }
+        .wrong-item .your-ans { color: var(--error); font-weight: bold; text-decoration: line-through; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div id="loginScreen" class="screen active">
+        <h1>Vocabulary Quiz</h1>
+        <p style="text-align: center; margin-bottom: 30px; color: #6b7280;">Thời gian: 10 phút | Số lượng: 25 câu</p>
+        <div class="input-group">
+            <label for="studentName">Họ và Tên học sinh:</label>
+            <input type="text" id="studentName" placeholder="Nhập tên của em để bắt đầu..." autocomplete="off">
+        </div>
+        <button id="startBtn">Bắt đầu làm bài</button>
+    </div>
+
+    <div id="quizScreen" class="screen">
+        <div class="quiz-header">
+            <div id="qCounter">Câu: 1/25</div>
+            <div id="timer" class="timer">10:00</div>
+        </div>
+        <div id="questionContainer"></div>
+        <div class="nav-buttons">
+            <button id="prevBtn" style="background-color: #6b7280;">Quay lại</button>
+            <button id="nextBtn">Tiếp theo</button>
+        </div>
+    </div>
+
+    <div id="resultScreen" class="screen">
+        <h2>Hoàn thành bài thi!</h2>
+        <div class="result-stat" id="scoreDisplay">Điểm: 0/25</div>
+        <div id="reviewSection">
+            <h3 style="color: var(--error); margin-top: 30px;">Danh sách câu sai cần học lại</h3>
+            <div id="wrongItemsContainer" class="wrong-list"></div>
+        </div>
+        <button onclick="location.reload()" style="margin-top: 30px;">Làm lại bài khác</button>
+    </div>
+</div>
+
+<script>
+    // --- NGÂN HÀNG 25 CÂU HỎI TỪ BÀI GIẢNG ---
+    const fullQuestionBank = [
+        // --- WORD FORM (GÕ TAY) ---
+        {
+            type: 'word_form',
+            text: 'The manager will conduct a thorough ________ of the factory to check if all safety standards are met. (INSPECT)',
+            correct: ['inspection', 'inspections']
+        },
+        {
+            type: 'word_form',
+            text: 'She has a clear ________ mind and always evaluates all components of a problem systematically. (ANALYSE)',
+            correct: ['analytical', 'analytic']
+        },
+        {
+            type: 'word_form',
+            text: 'Due to the storm, we had to rely on our ________ to change the travel plans at the last minute. (SPONTANEOUS)',
+            correct: ['spontaneity']
+        },
+        {
+            type: 'word_form',
+            text: 'It was very ________ of you to include everyone\'s dietary requirements in the menu planning. (CONSIDER)',
+            correct: ['considerate']
+        },
+        {
+            type: 'word_form',
+            text: 'The extreme heat in the desert was barely ________ without an adequate water supply. (TOLERATE)',
+            correct: ['tolerable']
+        },
+
+        // --- MULTIPLE CHOICES (CHỌN NHIỀU ĐÁP ÁN) ---
+        {
+            type: 'mc_multi',
+            text: 'Which of the following phrases can act as synonyms for "responsible for"? (Select multiple)',
+            options: ['Accountable for', 'Liable for', 'In charge of', 'Reticent about'],
+            correct: ['Accountable for', 'Liable for', 'In charge of']
+        },
+        {
+            type: 'mc_multi',
+            text: 'Select the verbs that mean "kìm nén, giấu cảm xúc": (Select multiple)',
+            options: ['Repress', 'Bottle up', 'Stifle', 'Express'],
+            correct: ['Repress', 'Bottle up', 'Stifle']
+        },
+        {
+            type: 'mc_multi',
+            text: 'Which of the following phrases are synonymous with "chú ý, để ý"? (Select multiple)',
+            options: ['Take heed of', 'Keep an eye on', 'Be mindful of', 'Take consideration of'],
+            correct: ['Take heed of', 'Keep an eye on', 'Be mindful of']
+        },
+        {
+            type: 'mc_multi',
+            text: 'Which of the following are CORRECT meanings or usages of the noun "reserve"? (Select multiple)',
+            options: ['A protected area for wildlife', 'A supply available for future use', 'Reticence or shyness', 'An impulsive action'],
+            correct: ['A protected area for wildlife', 'A supply available for future use', 'Reticence or shyness']
+        },
+        {
+            type: 'mc_multi',
+            text: 'Which of the following words are synonyms for "spontaneous"? (Select multiple)',
+            options: ['Improvised', 'Impulsive', 'Uncommunicative', 'Observant'],
+            correct: ['Improvised', 'Impulsive']
+        },
+
+        // --- CLOSEST MEANING (TỪ ĐỒNG NGHĨA) ---
+        {
+            type: 'closest',
+            text: 'Choose the word CLOSEST in meaning to the bold word: He was entirely **uncommunicative** during the interrogation.',
+            options: ['Reticent', 'Spontaneous', 'Considerate', 'Analytical'],
+            correct: ['Reticent']
+        },
+        {
+            type: 'closest',
+            text: 'Choose the word CLOSEST in meaning to the bold word: The evidence presented had a **substantial** impact on the jury.',
+            options: ['Considerable', 'Considerate', 'Tolerable', 'Protective'],
+            correct: ['Considerable']
+        },
+        {
+            type: 'closest',
+            text: 'Choose the word CLOSEST in meaning to the bold word: The new intern is very **watchful**; she misses nothing.',
+            options: ['Observant', 'Unorganized', 'Liable', 'Gentle'],
+            correct: ['Observant']
+        },
+        {
+            type: 'closest',
+            text: 'Choose the word CLOSEST in meaning to the bold word: The hikers embarked on a **daring** expedition across the frozen lake.',
+            options: ['Adventurous', 'Impulsive', 'Liable', 'Structural'],
+            correct: ['Adventurous']
+        },
+        {
+            type: 'closest',
+            text: 'Choose the word CLOSEST in meaning to the bold word: She spent hours crafting the vase **manually**.',
+            options: ['By hand', 'Automatically', 'Spontaneously', 'Deliberately'],
+            correct: ['By hand']
+        },
+
+        // --- OPPOSITE MEANING (TỪ TRÁI NGHĨA) ---
+        {
+            type: 'opposite',
+            text: 'Choose the word OPPOSITE in meaning to the bold word: The committee\'s approach to the problem was highly **disorganized**.',
+            options: ['Organized', 'Unorganized', 'Analytical', 'Improvised'],
+            correct: ['Organized']
+        },
+        {
+            type: 'opposite',
+            text: 'Choose the word OPPOSITE in meaning to the bold word: The chemical was surprisingly **gentle** on the fabric.',
+            options: ['Harsh', 'Mild', 'Tender', 'Considerate'],
+            correct: ['Harsh']
+        },
+        {
+            type: 'opposite',
+            text: 'Choose the word OPPOSITE in meaning to the bold word: The community is quite **intolerant** of noise after 10 PM.',
+            options: ['Tolerant', 'Tolerable', 'Considerate', 'Mindful'],
+            correct: ['Tolerant']
+        },
+        {
+            type: 'opposite',
+            text: 'Choose the word OPPOSITE in meaning to the bold word: He always plans his trips carefully; he is rarely **spontaneous**.',
+            options: ['Planned', 'Impulsive', 'Improvised', 'Uncommunicative'],
+            correct: ['Planned']
+        },
+        {
+            type: 'opposite',
+            text: 'Choose the word OPPOSITE in meaning to the bold word: He was very **shy** and kept to himself.',
+            options: ['Unreserved', 'Reticent', 'Reserved', 'Observant'],
+            correct: ['Unreserved']
+        },
+
+        // --- TRUE / FALSE ---
+        {
+            type: 'tf',
+            text: 'True or False: "Considerate" means "lớn, đáng kể", while "Considerable" means "chu đáo, thấu hiểu".',
+            options: ['True', 'False'],
+            correct: ['False']
+        },
+        {
+            type: 'tf',
+            text: 'True or False: The phrase "take something into consideration" is synonymous with "take account of something".',
+            options: ['True', 'False'],
+            correct: ['True']
+        },
+        {
+            type: 'tf',
+            text: 'True or False: "Disorganized" simply means something has not been arranged yet, whereas "unorganized" emphasizes a messy, chaotic state.',
+            options: ['True', 'False'],
+            correct: ['False']
+        },
+        {
+            type: 'tf',
+            text: 'True or False: A "wildlife reserve" is a piece of land that is protected for animals and plants.',
+            options: ['True', 'False'],
+            correct: ['True']
+        },
+        {
+            type: 'tf',
+            text: 'True or False: "First-hand experience" refers to knowledge obtained indirectly through reading or hearing from others.',
+            options: ['True', 'False'],
+            correct: ['False']
+        }
+    ];
+
+    // --- BIẾN TOÀN CỤC & LOGIC ---
+    const TOTAL_QUESTIONS = 25;
+    const TIME_LIMIT = 600; // 10 phút
+    let currentQuestions = [];
+    let userAnswers = {};
+    let currentIndex = 0;
+    let timerInterval;
+    let timeRemaining = TIME_LIMIT;
+    let studentName = "";
+
+    const loginScreen = document.getElementById('loginScreen');
+    const quizScreen = document.getElementById('quizScreen');
+    const resultScreen = document.getElementById('resultScreen');
+    const studentNameInput = document.getElementById('studentName');
+    const startBtn = document.getElementById('startBtn');
+    const questionContainer = document.getElementById('questionContainer');
+    const nextBtn = document.getElementById('nextBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const qCounter = document.getElementById('qCounter');
+    const timerDisplay = document.getElementById('timer');
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    startBtn.addEventListener('click', () => {
+        studentName = studentNameInput.value.trim();
+        if (!studentName) {
+            alert("Vui lòng nhập tên trước khi làm bài!");
+            return;
+        }
+        
+        // Trộn ngẫu nhiên câu hỏi
+        let shuffled = shuffleArray([...fullQuestionBank]);
+        currentQuestions = shuffled.slice(0, TOTAL_QUESTIONS);
+        userAnswers = {};
+        currentIndex = 0;
+        
+        loginScreen.classList.remove('active');
+        quizScreen.classList.add('active');
+        
+        renderQuestion();
+        startTimer();
+    });
+
+    function startTimer() {
+        timerDisplay.innerText = formatTime(timeRemaining);
+        timerInterval = setInterval(() => {
+            timeRemaining--;
+            timerDisplay.innerText = formatTime(timeRemaining);
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                submitQuiz();
+            }
+        }, 1000);
+    }
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function saveCurrentAnswer() {
+        const q = currentQuestions[currentIndex];
+        if (q.type === 'word_form') {
+            const input = document.getElementById(`ans_${currentIndex}`);
+            userAnswers[currentIndex] = input ? input.value.trim().toLowerCase() : "";
+        } else if (q.type === 'mc_multi') {
+            const checkboxes = document.querySelectorAll(`input[name="ans_${currentIndex}"]:checked`);
+            userAnswers[currentIndex] = Array.from(checkboxes).map(cb => cb.value);
+        } else {
+            const radio = document.querySelector(`input[name="ans_${currentIndex}"]:checked`);
+            userAnswers[currentIndex] = radio ? [radio.value] : [];
+        }
+    }
+
+    function renderQuestion() {
+        const q = currentQuestions[currentIndex];
+        qCounter.innerText = `Câu: ${currentIndex + 1}/${currentQuestions.length}`;
+        prevBtn.style.visibility = currentIndex === 0 ? 'hidden' : 'visible';
+        
+        if (currentIndex === currentQuestions.length - 1) {
+            nextBtn.innerText = "Nộp bài";
+            nextBtn.style.backgroundColor = "var(--success)";
+        } else {
+            nextBtn.innerText = "Tiếp theo";
+            nextBtn.style.backgroundColor = "var(--primary)";
+        }
+
+        let typeLabel = "";
+        let html = "";
+        
+        if (q.type === 'word_form') {
+            typeLabel = "Type the Word (Điền từ)";
+            let val = userAnswers[currentIndex] || "";
+            html = `<input type="text" id="ans_${currentIndex}" value="${val}" placeholder="Gõ đáp án của em vào đây..." autocomplete="off">`;
+        } else if (q.type === 'mc_multi') {
+            typeLabel = "Multiple Answers (Chọn nhiều đáp án đúng)";
+            let saved = userAnswers[currentIndex] || [];
+            html = `<div class="options-grid">`;
+            q.options.forEach((opt) => {
+                let isChecked = saved.includes(opt) ? "checked" : "";
+                html += `<label class="option-label"><input type="checkbox" name="ans_${currentIndex}" value="${opt}" ${isChecked}> ${opt}</label>`;
+            });
+            html += `</div>`;
+        } else {
+            if(q.type === 'tf') typeLabel = "True / False";
+            else if(q.type === 'closest') typeLabel = "Synonym (Từ đồng nghĩa)";
+            else if(q.type === 'opposite') typeLabel = "Antonym (Từ trái nghĩa)";
+            
+            let saved = userAnswers[currentIndex] || [];
+            html = `<div class="options-grid">`;
+            q.options.forEach((opt) => {
+                let isChecked = saved.includes(opt) ? "checked" : "";
+                html += `<label class="option-label"><input type="radio" name="ans_${currentIndex}" value="${opt}" ${isChecked}> ${opt}</label>`;
+            });
+            html += `</div>`;
+        }
+
+        questionContainer.innerHTML = `
+            <div class="question-type-badge">${typeLabel}</div>
+            <div class="question-text">${q.text}</div>
+            ${html}
+        `;
+    }
+
+    nextBtn.addEventListener('click', () => {
+        saveCurrentAnswer();
+        if (currentIndex === currentQuestions.length - 1) {
+            if(confirm("Em có chắc chắn muốn nộp bài không?")) submitQuiz();
+        } else {
+            currentIndex++;
+            renderQuestion();
+        }
+    });
+
+    prevBtn.addEventListener('click', () => {
+        saveCurrentAnswer();
+        currentIndex--;
+        renderQuestion();
+    });
+
+    function arraysEqual(a, b) {
+        if (a === b) return true;
+        if (a == null || b == null) return false;
+        if (a.length !== b.length) return false;
+        let sortedA = [...a].sort();
+        let sortedB = [...b].sort();
+        for (let i = 0; i < sortedA.length; ++i) {
+            if (sortedA[i] !== sortedB[i]) return false;
+        }
+        return true;
+    }
+
+    function submitQuiz() {
+        clearInterval(timerInterval);
+        saveCurrentAnswer();
+        
+        let score = 0;
+        let wrongItemsHTML = "";
+
+        currentQuestions.forEach((q, idx) => {
+            let uAns = userAnswers[idx];
+            let isCorrect = false;
+            let uAnsDisplay = "";
+            let cAnsDisplay = q.correct.join(' / '); // Hiển thị nhiều cách gõ đúng cho HS xem
+
+            if (q.type === 'word_form') {
+                uAns = uAns || "";
+                uAnsDisplay = uAns === "" ? "(Bỏ trống)" : uAns;
+                isCorrect = q.correct.some(c => c.toLowerCase() === uAns.toLowerCase());
+            } else if (q.type === 'mc_multi') {
+                uAns = uAns || [];
+                uAnsDisplay = uAns.length === 0 ? "(Bỏ trống)" : uAns.join(', ');
+                isCorrect = arraysEqual(uAns, q.correct);
+                cAnsDisplay = q.correct.join(', ');
+            } else {
+                uAns = uAns || [];
+                uAnsDisplay = uAns.length === 0 ? "(Bỏ trống)" : uAns[0];
+                isCorrect = q.correct.includes(uAnsDisplay);
+                cAnsDisplay = q.correct[0];
+            }
+
+            if (isCorrect) {
+                score++;
+            } else {
+                wrongItemsHTML += `
+                    <div class="wrong-item">
+                        <p><strong>Câu ${idx + 1}:</strong> ${q.text}</p>
+                        <p>Đáp án của em: <span class="your-ans">${uAnsDisplay}</span></p>
+                        <p>Đáp án đúng: <span class="correct-ans">${cAnsDisplay}</span></p>
+                    </div>
+                `;
+            }
+        });
+
+        quizScreen.classList.remove('active');
+        resultScreen.classList.add('active');
+        
+        document.getElementById('scoreDisplay').innerText = `Học sinh: ${studentName}\nĐiểm: ${score}/${currentQuestions.length}`;
+        
+        const wrongContainer = document.getElementById('wrongItemsContainer');
+        if (score === currentQuestions.length) {
+            wrongContainer.innerHTML = "<p style='color: var(--success); text-align: center; font-weight: bold;'>Tuyệt vời! Em không sai câu nào!</p>";
+        } else {
+            wrongContainer.innerHTML = wrongItemsHTML;
+        }
+    }
+</script>
+</body>
+</html>
